@@ -1,0 +1,54 @@
+name: Action Warden — Enforce SHA-Pinned Actions
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/aw/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - '.github/aw/**'
+
+permissions:
+  contents: read
+
+jobs:
+  enforce-sha-pins:
+    name: Verify actions are SHA-pinned
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Actions Warden
+        uses: github/gh-aw-actions/setup@ba90f2186d7ad780ec640f364005fa24e797b360 # v0.68.3
+
+      - name: Check all workflows use pinned SHAs
+        run: gh aw check --lockfile .github/aw/actions-lock.json
+
+      - name: Post results to summary
+        if: always()
+        uses: actions/github-script@373c709c69115d41ff229c7e5df9f8788daa9553 # v9
+        with:
+          script: |
+            const status = '${{ steps.check.outcome }}' === 'failure' ? '❌' : '✅';
+            const summary = [
+              '### Action Warden Results',
+              '',
+              `${status} **SHA Pin Enforcement**`,
+              '',
+              'All GitHub Actions must reference a pinned SHA from `.github/aw/actions-lock.json`.',
+              '',
+              'To fix violations, replace tag references with their SHA equivalents:',
+              '```yaml',
+              '# Bad — mutable tag',
+              '- uses: actions/checkout@v6.0.2',
+              '',
+              '# Good — immutable SHA pin',
+              '- uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2',
+              '```',
+            ].join('\n');
+            await core.summary.addRaw(summary).write();
