@@ -69,7 +69,7 @@ jobs:
                 echo "❌ $workflow — $action@$version (uses tag, not SHA)" >> "$GITHUB_STEP_SUMMARY"
                 VIOLATIONS=$((VIOLATIONS + 1))
               fi
-            done < <(grep -n 'uses:' "$workflow")
+            done < <(grep -nP '^\s+uses:\s' "$workflow")
           done
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
