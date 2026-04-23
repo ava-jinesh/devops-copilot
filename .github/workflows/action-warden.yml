@@ -29,13 +29,15 @@ jobs:
         run: |
           LOCKFILE=".github/aw/actions-lock.json"
           VIOLATIONS=0
-          REPORT=""
+          FIXES=""
 
           # Build a map of allowed SHAs from the lock file
           declare -A ALLOWED_SHAS
+          declare -A TAG_TO_SHA
           for key in $(jq -r '.entries | keys[]' "$LOCKFILE"); do
             sha=$(jq -r --arg k "$key" '.entries[$k].sha' "$LOCKFILE")
             ALLOWED_SHAS["$sha"]=1
+            TAG_TO_SHA["$key"]="$sha"
           done
 
           echo "### Action Warden Report" >> "$GITHUB_STEP_SUMMARY"
@@ -67,6 +69,16 @@ jobs:
                 fi
               else
                 echo "❌ $workflow — $action@$version (uses tag, not SHA)" >> "$GITHUB_STEP_SUMMARY"
+                # Look up the fix from the lock file
+                lock_key="$action@$version"
+                if [[ -n "${TAG_TO_SHA[$lock_key]+x}" ]]; then
+                  FIXES+="# $workflow\n"
+                  FIXES+="- uses: $action@$version\n"
+                  FIXES+="+ uses: $action@${TAG_TO_SHA[$lock_key]} # $version\n\n"
+                else
+                  FIXES+="# $workflow\n"
+                  FIXES+="- uses: $action@$version  (not found in lock file — run: gh aw lock)\n\n"
+                fi
                 VIOLATIONS=$((VIOLATIONS + 1))
               fi
             done < <(grep -nP '^\s+uses:\s' "$workflow")
@@ -77,12 +89,9 @@ jobs:
           if [ "$VIOLATIONS" -gt 0 ]; then
             echo "**$VIOLATIONS violation(s) found.** All actions must use SHA pins from \`.github/aw/actions-lock.json\`." >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo '```yaml' >> "$GITHUB_STEP_SUMMARY"
-            echo '# Bad — mutable tag' >> "$GITHUB_STEP_SUMMARY"
-            echo '- uses: actions/checkout@v6.0.2' >> "$GITHUB_STEP_SUMMARY"
-            echo '' >> "$GITHUB_STEP_SUMMARY"
-            echo '# Good — immutable SHA pin' >> "$GITHUB_STEP_SUMMARY"
-            echo '- uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2' >> "$GITHUB_STEP_SUMMARY"
+            echo "#### Suggested fixes:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```diff' >> "$GITHUB_STEP_SUMMARY"
+            echo -e "$FIXES" >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             echo "::error::$VIOLATIONS action(s) not SHA-pinned. See job summary for details."
             exit 1
