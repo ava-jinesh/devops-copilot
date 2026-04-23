@@ -69,15 +69,23 @@ jobs:
                 fi
               else
                 echo "❌ $workflow — $action@$version (uses tag, not SHA)" >> "$GITHUB_STEP_SUMMARY"
-                # Look up the fix from the lock file
+                # Look up the fix from the lock file (try exact, then with/without v prefix)
                 lock_key="$action@$version"
+                if [[ -z "${TAG_TO_SHA[$lock_key]+x}" ]]; then
+                  if [[ "$version" == v* ]]; then
+                    lock_key="$action@${version#v}"
+                  else
+                    lock_key="$action@v$version"
+                  fi
+                fi
                 if [[ -n "${TAG_TO_SHA[$lock_key]+x}" ]]; then
+                  lock_version=$(echo "$lock_key" | cut -d'@' -f2)
                   FIXES+="# $workflow\n"
                   FIXES+="- uses: $action@$version\n"
-                  FIXES+="+ uses: $action@${TAG_TO_SHA[$lock_key]} # $version\n\n"
+                  FIXES+="+ uses: $action@${TAG_TO_SHA[$lock_key]} # $lock_version\n\n"
                 else
                   FIXES+="# $workflow\n"
-                  FIXES+="- uses: $action@$version  (not found in lock file — run: gh aw lock)\n\n"
+                  FIXES+="- uses: $action@$version  (not found in lock file — add it to actions-lock.json)\n\n"
                 fi
                 VIOLATIONS=$((VIOLATIONS + 1))
               fi

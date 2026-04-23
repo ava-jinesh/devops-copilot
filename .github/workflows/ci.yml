@@ -25,7 +25,7 @@ jobs:
             await core.summary.addRaw(summary).write();
 
       - name: Upload build log
-        uses: actions/upload-artifact@7.0.0 # v7.0.0 #bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@v7.0.0 # v7.0.0 #bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: build-log
           path: '**/*.log'
